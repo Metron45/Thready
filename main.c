@@ -19,102 +19,157 @@
 #define BOARD_OBSTACLES 4
 #define ID 5
 
-
-int *top_X, *top_Y, *bottom_X, *bottom_Y;
-int *cursor_x, *cursor_y, *hit_counter;
+int *top_X, *top_Y, *bottom_X, *bottom_Y; //obstacle info
+int *cursor_x, *cursor_y, *hit_counter; //ball thread info
+bool *is_asleep; //ball thread into
 pthread_mutex_t *mutexLockThreads, *mutexLockObstacles;
 pthread_cond_t *condLock;
-bool finish;
+bool finish; //check for the end of the program
 
 int check_collision(int * data){
-    bool col_x = false,col_y=false;
-
-    for(int i=0;i<data[BOARD_OBSTACLES];i++){
+    for(int i=0;i<=data[BOARD_OBSTACLES];i++){
+        pthread_mutex_lock(&mutexLockObstacles[i]);
         if(top_X[i] >= data[X] && data[X] >= bottom_X[i] && top_Y[i] >= data[Y] && data[Y] >= bottom_Y[i]){
-                return i;
+            pthread_mutex_unlock(&mutexLockObstacles[i]);
+            return i;
         }
+        pthread_mutex_unlock(&mutexLockObstacles[i]);
     }
     return -1;
 }
 
 int check_side(int * data, int obstacle_index){
-    int x=0;
-    int y=0;
+    int col=0;
 
-    if(data[X] == top_X[obstacle_index] || data[X] == bottom_X[obstacle_index]){
-        x=1;
+    pthread_mutex_lock(&mutexLockObstacles[obstacle_index]);
+    if(data[X] == top_X[obstacle_index]){
+        col+=1;
+    }
+    else if(data[X] == bottom_X[obstacle_index]){
+        col+=1;
     }
 
-    if(data[Y] == top_Y[obstacle_index] || data[Y] == bottom_Y[obstacle_index]){
-        y=2;
+    if(data[Y] == top_Y[obstacle_index]){
+        col+=2;
     }
-    return x+y;
+    else if(data[Y] == bottom_Y[obstacle_index]){
+        col+=2;
+    }
+
+    pthread_mutex_unlock(&mutexLockObstacles[obstacle_index]);
+    return col;
+}
+
+int move_ball(int * data){
+    switch (data[MOVEMENT]) {
+        case 0:
+            data[X]++;
+            break;
+        case 1:
+            data[X]++;
+            data[Y]--;
+            break;
+        case 2:
+            data[Y]--;
+            break;
+        case 3:
+            data[X]--;
+            data[Y]--;
+            break;
+        case 4:
+            data[X]--;
+            break;
+        case 5:
+            data[X]--;
+            data[Y]++;
+            break;
+        case 6:
+            data[Y]++;
+            break;
+        case 7:
+            data[X]++;
+            data[Y]++;
+            break;
+    }
+    if(data[X] < 0 || data[X] > AREA_SIZE * 2 || data[Y] > AREA_SIZE || data[Y] < 0){
+        return 1;
+    }
+
+    return 0;
+}
+
+void change_movement(int * data, int col){
+    switch (data[MOVEMENT]) {
+        case 0:
+            data[MOVEMENT] = 3 + (rand() % 3);
+            break;
+        case 1:
+            if (col == 1) {
+                data[MOVEMENT] = 3 + (rand() % 2);
+            } else if (col == 2) {
+                data[MOVEMENT] = 6 + (rand() % 2);
+            } else {
+                data[MOVEMENT] = 4 + (rand() % 3);
+            }
+            break;
+        case 2:
+            data[MOVEMENT] = 5 + (rand() % 3);
+            break;
+        case 3:
+            if (col == 1) {
+                data[MOVEMENT] = (rand() % 2);
+            } else if (col == 2) {
+                data[MOVEMENT] = 5 + (rand() % 2);
+            } else {
+                data[MOVEMENT] = (6 + (rand() % 3)) % 8;
+            }
+            break;
+        case 4:
+            data[MOVEMENT] = (7 + rand() % 3) % 8;
+        case 5:
+            if (col == 1) {
+                data[MOVEMENT] = (7 + (rand() % 2)) % 8;
+            } else if (col == 2) {
+                data[MOVEMENT] = 2 + (rand() % 2);
+            } else {
+                data[MOVEMENT] = (rand() % 3);
+            }
+            break;
+        case 6:
+            data[MOVEMENT] = 1 + (rand() % 3);
+            break;
+        case 7:
+            if (col == 1) {
+                data[MOVEMENT] = 4 + (rand() % 2);
+            } else if (col == 2) {
+                data[MOVEMENT] = 1 + (rand() % 2);
+            } else {
+                data[MOVEMENT] = 2 + (rand() % 3);
+            }
+            break;
+        default:
+            data[MOVEMENT] =  (data[MOVEMENT] + 4)%8;
+        break;
+    }
 }
 
 int move_position(int * data){
 
-    switch(data[MOVEMENT]){
-        case 0:
-            data[X]++;
-            if(data[X] > AREA_SIZE*2){
-                return 1;
-            }
-        break; 
-        case 1:
-            data[X]++;
-            data[Y]--;
-            if(data[X] > AREA_SIZE*2 || data[Y] < 0){
-                return 1;
-            }
-        break;
-        case 2:
-            data[Y]--;
-            if(data[Y] < 0){
-                return 1;
-            }
-        break; 
-        case 3:
-            data[X]--;
-            data[Y]--;
-            if(data[X] < 0 || data[Y] < 0){
-                return 1;
-            }
-        break;
-        case 4:
-            data[X]--;
-            if(data[X] < 0){
-                return 1;
-            }
-        break; 
-        case 5:
-            data[X]--;
-            data[Y]++;
-            if(data[X] < 0 || data[Y] > AREA_SIZE){
-                return 1;
-            }
-        break;
-        case 6:
-            data[Y]++;
-            if(data[Y] > AREA_SIZE){
-                return 1;
-            }
-        break; 
-        case 7:
-            data[X]++;
-            data[Y]++;
-            if(data[X] > AREA_SIZE*2 || data[Y] > AREA_SIZE){
-                return 1;
-            }
-        break;
+    //move ball and check for falling out of box
+    int out = move_ball(data);
+    if(out == 1){
+        return 1;
     }
 
+    //check for collision with obstacle
     int col = check_collision(data);
-    if(col != -1){
-        col= check_side(data, col);
-        hit_counter[data[ID]] += col;
+    if(col > -1){
+        col = check_side(data, col);
+        pthread_mutex_lock(&mutexLockThreads[data[ID]]);
+        hit_counter[data[ID]] ++;
+        pthread_mutex_unlock(&mutexLockThreads[data[ID]]);
+        change_movement(data,col);
     }
-    
-    
 
     return 0;
 }
@@ -134,10 +189,6 @@ void *thread_function( void * ptr ){
         thread_id
     }; 
     //int thread_id = atoi((char*) ptr);
-   
-    pthread_mutex_lock(&mutexLockThreads[thread_id]);
-    hit_counter[thread_id] = 0;
-    pthread_mutex_unlock(&mutexLockThreads[thread_id]);
     
     while(!finish){
         //Speed decision
@@ -146,7 +197,14 @@ void *thread_function( void * ptr ){
         //movement function
         if(move_position(data) == 1){
             pthread_mutex_lock(&mutexLockThreads[thread_id]);
+            is_asleep[thread_id] = true;
             pthread_cond_wait(&condLock[thread_id], &mutexLockThreads[thread_id]);
+            is_asleep[thread_id] = false;
+
+            data[X] = AREA_SIZE - START_AREA/2 + (int)(rand() % START_AREA) + 1; //X starting position
+            data[Y] = AREA_SIZE/2 - START_AREA/2 + (int)(rand() % START_AREA) + 1; //Y starting position
+            data[MOVEMENT] = (int)(rand() % 8); //Movement direction
+
             pthread_mutex_unlock(&mutexLockThreads[thread_id]);
         }
 
@@ -179,6 +237,12 @@ void *thread_draw( void * ptr ){
             printw("H");
         }
 
+
+
+        //draw top info
+        move(AREA_SIZE + 2, 0);
+        printw("Threads: %d Obstacles: %d Size: %d", threads, obstacles, AREA_SIZE);
+
         //draw obstacles
         for(int y = 0 ; y < obstacles ; y++){
             move(AREA_SIZE + 4 + threads + y, 0);
@@ -195,15 +259,11 @@ void *thread_draw( void * ptr ){
             }
         }
 
-        //draw top info
-        move(AREA_SIZE + 2, 0);
-        printw("Threads: %d Obstacles: %d Size: %d", threads, obstacles, AREA_SIZE);
-
         //draw thread info
         for(int y = 0 ; y < threads ; y++){
             move(AREA_SIZE + 3 + y, 0);
             pthread_mutex_lock(&mutexLockThreads[y]);
-            printw("Thread: %2d Hit_counted: %2d Position X:%2d Y:%2d", y, hit_counter[y], cursor_x[y], cursor_y[y]);
+            printw("Thread: %2d Hit_counted: %2d IsAsleep: %d Position X:%2d Y:%2d", y, hit_counter[y], is_asleep[y], cursor_x[y], cursor_y[y]);
             if(cursor_x[y] != -1 && cursor_y[y] != -1){
                 move(cursor_y[y] ,cursor_x[y] );
                 printw("o");
@@ -211,8 +271,35 @@ void *thread_draw( void * ptr ){
             pthread_mutex_unlock(&mutexLockThreads[y]);
         }
         
+        
 
         refresh();
+    }
+}
+
+void *thread_unlock( void * ptr ){
+    int asleep_count = 0;
+    int max_asleep; 
+    int threads;
+    sscanf(ptr, "%d-%d", &max_asleep, &threads);
+    int thread_with_least_hits;
+    while(!finish){
+        thread_with_least_hits = 0;
+        asleep_count =0;
+        for(int i = 0; i < threads; i++){
+            pthread_mutex_lock(&mutexLockThreads[i]);
+                if(is_asleep[i]){
+                    asleep_count++;
+                    if(hit_counter[i]<hit_counter[thread_with_least_hits]){
+                        thread_with_least_hits = i;
+                    }
+                }
+            pthread_mutex_unlock(&mutexLockThreads[i]);
+        }
+        if(max_asleep < asleep_count){
+
+            pthread_cond_signal(&condLock[thread_with_least_hits]);
+        }
     }
 }
 
@@ -269,23 +356,31 @@ int main(int argc, char *argv[]){
     srand(time(NULL));
 
     //number of threads
-    int threads = 7;
+    int threads = 6;
     if (argc > 1) {
         threads = atoi(argv[1]);
+    }
+    int max_active_threads = 3;
+    if (argc > 2) {
+        max_active_threads = atoi(argv[2]);
     }
 
     //allocate
     cursor_x = malloc(threads * sizeof(int));
     cursor_y = malloc(threads * sizeof(int));
     hit_counter = malloc(threads * sizeof(int));
+    is_asleep = malloc(threads * sizeof(bool));
     mutexLockThreads = malloc(threads * sizeof(pthread_mutex_t));
     condLock = malloc(threads * sizeof(pthread_cond_t)); 
 
     //initialize
     for(int i = 0;i < threads; i++){
+        //ball threads
         cursor_x[i] = -1;
         cursor_y[i] = -1;
-        hit_counter[i] = -1;
+        hit_counter[i] = 0;
+        is_asleep[i] = false;
+        //mutexes
         if (pthread_mutex_init(&mutexLockThreads[i], NULL) != 0){
             return 1;
         }
@@ -296,8 +391,8 @@ int main(int argc, char *argv[]){
 
     //create obstacles
     int obstacles = 4;
-    if (argc > 2) {
-        obstacles = atoi(argv[2]);
+    if (argc > 3) {
+        obstacles = atoi(argv[3]);
     }
     top_X = malloc(obstacles * sizeof(int));
     top_Y = malloc(obstacles * sizeof(int));
@@ -306,33 +401,25 @@ int main(int argc, char *argv[]){
     mutexLockObstacles = malloc(obstacles * sizeof(pthread_mutex_t));
 
     for(int i = 0; i < obstacles;i++){
+        if (pthread_mutex_init(&mutexLockObstacles[i], NULL) != 0){
+            return 1;
+        }
         create_obstacle(i);
-        //printf("%d %d %d %d\n",top_X[i], top_Y[i], bottom_X[i], bottom_Y[i]);
     }
 
-
-
-    //initialize messages with thread_ids
-    char **message = malloc((threads+1) * sizeof(char));
-    for(int i = 0;i <= threads; i++){
+    //initialize messages
+    char **message = malloc((threads+2) * sizeof(char));
+    for(int i = 0;i < threads+2; i++){
         message[i] = malloc(2 * sizeof(char));
         sprintf(message[i], "%d-%d", i, obstacles);
-        //printf("%s\n", message[i]);
     }
     sprintf(message[threads], "%d-%d", threads,obstacles);
-    //printf("%s\n", message[threads]);
-
+    sprintf(message[threads+1], "%d-%d", max_active_threads, threads);
  
-    //initialize ncurses screen <============================================
-    initscr();
-    noecho();
-    curs_set(FALSE);
-
-    //initialize threads
+    //initialize ball threads
     for(int i=0; i < threads ; i++){
         error = pthread_create( &thread, NULL, thread_function, (void*) message[i]);
         if(error){
-            endwin();
             printf("Thread failed to start");
             return 1;
         }
@@ -340,19 +427,27 @@ int main(int argc, char *argv[]){
     //initialize draw thread
     error = pthread_create( &thread, NULL, thread_draw, (void*) message[threads]);
     if(error){
-        endwin();
         printf("Draw thread failed to start");
         return 1;
     }
 
-    //wait for input to end program
+    //initialize unlocking thread
+    error = pthread_create( &thread, NULL, thread_unlock, (void*) message[threads + 1]);
+    if(error){
+        printf("Unlock thread failed to start");
+        return 1;
+    }
+
+    //initialize ncurses screen
+    initscr();
+    noecho();
+    curs_set(FALSE);
+
+    //wait for input to end programdraw
     getch();
     finish = true;
 
-    //finish threads
-    for(int i=0; i < threads + 1 ; i++){
-        pthread_join( thread, NULL);
-    }
+
 
     //ending mutexes and condition locks
     for(int i = 0;i < threads; i++){
@@ -360,15 +455,33 @@ int main(int argc, char *argv[]){
         pthread_cond_signal(&condLock[i]);
         pthread_mutex_destroy(&mutexLockThreads[i]);
         pthread_cond_destroy(&condLock[i]);
+
+        pthread_mutex_unlock(&mutexLockObstacles[i]);
+        pthread_mutex_destroy(&mutexLockObstacles[i]);
+    }
+
+        //finish threads
+    for(int i=0; i < threads + 2 ; i++){
+        pthread_join( thread, NULL);
     }
 
     //ending ncurses
     endwin();
 
     //freeing space
+    free(top_X);
+    free(top_Y);
+    free(bottom_X);
+    free(bottom_Y);
+
     free(cursor_x);
     free(cursor_y);
+    free(hit_counter);
+
+
     free(mutexLockThreads);
+    free(mutexLockObstacles);
+
     free(message);
 
     printf("Aplication exited succesfully\n");
