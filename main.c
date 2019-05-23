@@ -175,7 +175,6 @@ int move_position(int * data){
 }
 
 void *thread_function( void * ptr ){
-
     int thread_id;
     int obstacles;
     sscanf(ptr, "%d-%d", &thread_id, &obstacles);
@@ -284,11 +283,14 @@ void *thread_unlock( void * ptr ){
     sscanf(ptr, "%d-%d", &max_asleep, &threads);
     int thread_with_least_hits;
     while(!finish){
-        thread_with_least_hits = 0;
+
+        usleep(50000);
+
+        thread_with_least_hits = rand()%threads;
         asleep_count =0;
         for(int i = 0; i < threads; i++){
             pthread_mutex_lock(&mutexLockThreads[i]);
-                if(is_asleep[i]){
+                if(is_asleep[i] == 1){
                     asleep_count++;
                     if(hit_counter[i]<hit_counter[thread_with_least_hits]){
                         thread_with_least_hits = i;
@@ -296,8 +298,7 @@ void *thread_unlock( void * ptr ){
                 }
             pthread_mutex_unlock(&mutexLockThreads[i]);
         }
-        if(max_asleep < asleep_count){
-
+        if(asleep_count > (threads - max_asleep)){
             pthread_cond_signal(&condLock[thread_with_least_hits]);
         }
     }
@@ -305,7 +306,6 @@ void *thread_unlock( void * ptr ){
 
 void create_obstacle(int obstacle_index){
     int board_part = obstacle_index % 4;
-    pthread_mutex_lock(&mutexLockObstacles[obstacle_index]);
     if(board_part == 0){
         top_X[obstacle_index]    = (int)(rand() % (AREA_SIZE*2 - ((AREA_SIZE*2-START_AREA)/2)));
         bottom_X[obstacle_index] = (int)(rand() % (AREA_SIZE*2 - ((AREA_SIZE*2-START_AREA)/2)));
@@ -343,8 +343,6 @@ void create_obstacle(int obstacle_index){
         top_Y[obstacle_index] = bottom_Y[obstacle_index];
         bottom_Y[obstacle_index] = temp;
     }
-
-    pthread_mutex_unlock(&mutexLockObstacles[obstacle_index]);
 }
 
 int main(int argc, char *argv[]){ 
@@ -398,8 +396,8 @@ int main(int argc, char *argv[]){
     top_Y = malloc(obstacles * sizeof(int));
     bottom_X = malloc(obstacles * sizeof(int));
     bottom_Y = malloc(obstacles * sizeof(int));
-    mutexLockObstacles = malloc(obstacles * sizeof(pthread_mutex_t));
 
+    mutexLockObstacles = malloc(obstacles * sizeof(pthread_mutex_t));
     for(int i = 0; i < obstacles;i++){
         if (pthread_mutex_init(&mutexLockObstacles[i], NULL) != 0){
             return 1;
@@ -469,15 +467,15 @@ int main(int argc, char *argv[]){
     endwin();
 
     //freeing space
-    free(top_X);
-    free(top_Y);
+    //free(top_X);
+    //free(top_Y);
     free(bottom_X);
     free(bottom_Y);
 
     free(cursor_x);
     free(cursor_y);
     free(hit_counter);
-
+    free(is_asleep);
 
     free(mutexLockThreads);
     free(mutexLockObstacles);
