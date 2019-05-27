@@ -22,18 +22,18 @@
 int *top_X, *top_Y, *bottom_X, *bottom_Y; //obstacle info
 int *cursor_x, *cursor_y, *hit_counter; //ball thread info
 bool *is_asleep; //ball thread into
-pthread_mutex_t *mutexLockThreads, *mutexLockObstacles;
+pthread_mutex_t mutexLockThreads, mutexLockObstacles;
 pthread_cond_t *condLock;
 bool finish; //check for the end of the program
 
 int check_collision(int * data){
     for(int i=0;i<=data[BOARD_OBSTACLES];i++){
-        pthread_mutex_lock(&mutexLockObstacles[i]);
+        pthread_mutex_lock(&mutexLockObstacles);
         if(top_X[i] >= data[X] && data[X] >= bottom_X[i] && top_Y[i] >= data[Y] && data[Y] >= bottom_Y[i]){
-            pthread_mutex_unlock(&mutexLockObstacles[i]);
+            pthread_mutex_unlock(&mutexLockObstacles);
             return i;
         }
-        pthread_mutex_unlock(&mutexLockObstacles[i]);
+        pthread_mutex_unlock(&mutexLockObstacles);
     }
     return -1;
 }
@@ -41,7 +41,7 @@ int check_collision(int * data){
 int check_side(int * data, int obstacle_index){
     int col=0;
 
-    pthread_mutex_lock(&mutexLockObstacles[obstacle_index]);
+    pthread_mutex_lock(&mutexLockObstacles);
     if(data[X] == top_X[obstacle_index]){
         col+=1;
     }
@@ -56,7 +56,7 @@ int check_side(int * data, int obstacle_index){
         col+=2;
     }
 
-    pthread_mutex_unlock(&mutexLockObstacles[obstacle_index]);
+    pthread_mutex_unlock(&mutexLockObstacles);
     return col;
 }
 
@@ -165,9 +165,9 @@ int move_position(int * data){
     int col = check_collision(data);
     if(col > -1){
         col = check_side(data, col);
-        pthread_mutex_lock(&mutexLockThreads[data[ID]]);
+        pthread_mutex_lock(&mutexLockThreads);
         hit_counter[data[ID]] ++;
-        pthread_mutex_unlock(&mutexLockThreads[data[ID]]);
+        pthread_mutex_unlock(&mutexLockThreads);
         change_movement(data,col);
     }
 
@@ -195,23 +195,23 @@ void *thread_function( void * ptr ){
         
         //movement function
         if(move_position(data) == 1){
-            pthread_mutex_lock(&mutexLockThreads[thread_id]);
+            pthread_mutex_lock(&mutexLockThreads);
             is_asleep[thread_id] = true;
-            pthread_cond_wait(&condLock[thread_id], &mutexLockThreads[thread_id]);
+            pthread_cond_wait(&condLock[thread_id], &mutexLockThreads);
             is_asleep[thread_id] = false;
 
             data[X] = AREA_SIZE - START_AREA/2 + (int)(rand() % START_AREA) + 1; //X starting position
             data[Y] = AREA_SIZE/2 - START_AREA/2 + (int)(rand() % START_AREA) + 1; //Y starting position
             data[MOVEMENT] = (int)(rand() % 8); //Movement direction
 
-            pthread_mutex_unlock(&mutexLockThreads[thread_id]);
+            pthread_mutex_unlock(&mutexLockThreads);
         }
 
         //write to critical section
-        pthread_mutex_lock(&mutexLockThreads[thread_id]);
+        pthread_mutex_lock(&mutexLockThreads);
         cursor_x[thread_id] = data[X];
         cursor_y[thread_id] = data[Y];
-        pthread_mutex_unlock(&mutexLockThreads[thread_id]);
+        pthread_mutex_unlock(&mutexLockThreads);
     }
 }
 
@@ -245,9 +245,9 @@ void *thread_draw( void * ptr ){
         //draw obstacles
         for(int y = 0 ; y < obstacles ; y++){
             move(AREA_SIZE + 4 + threads + y, 0);
-            pthread_mutex_lock(&mutexLockObstacles[y]);
+            pthread_mutex_lock(&mutexLockObstacles);
             printw("Obstacle: %2d Top: %2d %2d Bottom: %2d %2d", y, top_X[y], top_Y[y], bottom_X[y], bottom_Y[y]);
-            pthread_mutex_unlock(&mutexLockObstacles[y]);
+            
             for(int i=0;i<obstacles;i++){
                 for(int x = bottom_X[i]; x<=top_X[i];x++){
                     for(int y = bottom_Y[i]; y<=top_Y[i];y++){
@@ -256,18 +256,19 @@ void *thread_draw( void * ptr ){
                     }
                 }
             }
+            pthread_mutex_unlock(&mutexLockObstacles);
         }
 
         //draw thread info
         for(int y = 0 ; y < threads ; y++){
             move(AREA_SIZE + 3 + y, 0);
-            pthread_mutex_lock(&mutexLockThreads[y]);
+            pthread_mutex_lock(&mutexLockThreads);
             printw("Thread: %2d Hit_counted: %2d IsAsleep: %d Position X:%2d Y:%2d", y, hit_counter[y], is_asleep[y], cursor_x[y], cursor_y[y]);
             if(cursor_x[y] != -1 && cursor_y[y] != -1){
                 move(cursor_y[y] ,cursor_x[y] );
                 printw("o");
             }
-            pthread_mutex_unlock(&mutexLockThreads[y]);
+            pthread_mutex_unlock(&mutexLockThreads);
         }
         
         
@@ -289,14 +290,14 @@ void *thread_unlock( void * ptr ){
         thread_with_least_hits = rand()%threads;
         asleep_count =0;
         for(int i = 0; i < threads; i++){
-            pthread_mutex_lock(&mutexLockThreads[i]);
+            pthread_mutex_lock(&mutexLockThreads);
                 if(is_asleep[i] == 1){
                     asleep_count++;
                     if(hit_counter[i]<hit_counter[thread_with_least_hits]){
                         thread_with_least_hits = i;
                     }
                 }
-            pthread_mutex_unlock(&mutexLockThreads[i]);
+            pthread_mutex_unlock(&mutexLockThreads);
         }
         if(asleep_count > (threads - max_asleep)){
             pthread_cond_signal(&condLock[thread_with_least_hits]);
@@ -368,7 +369,6 @@ int main(int argc, char *argv[]){
     cursor_y = malloc(threads * sizeof(int));
     hit_counter = malloc(threads * sizeof(int));
     is_asleep = malloc(threads * sizeof(bool));
-    mutexLockThreads = malloc(threads * sizeof(pthread_mutex_t));
     condLock = malloc(threads * sizeof(pthread_cond_t)); 
 
     //initialize
@@ -379,12 +379,14 @@ int main(int argc, char *argv[]){
         hit_counter[i] = 0;
         is_asleep[i] = false;
         //mutexes
-        if (pthread_mutex_init(&mutexLockThreads[i], NULL) != 0){
-            return 1;
-        }
+        
         if (pthread_cond_init(&condLock[i], NULL) != 0){
             return 1;
         }
+    }
+
+    if (pthread_mutex_init(&mutexLockThreads, NULL) != 0){
+            return 1;
     }
 
     //create obstacles
@@ -392,23 +394,25 @@ int main(int argc, char *argv[]){
     if (argc > 3) {
         obstacles = atoi(argv[3]);
     }
+
     top_X = malloc(obstacles * sizeof(int));
     top_Y = malloc(obstacles * sizeof(int));
     bottom_X = malloc(obstacles * sizeof(int));
     bottom_Y = malloc(obstacles * sizeof(int));
 
-    mutexLockObstacles = malloc(obstacles * sizeof(pthread_mutex_t));
     for(int i = 0; i < obstacles;i++){
-        if (pthread_mutex_init(&mutexLockObstacles[i], NULL) != 0){
-            return 1;
-        }
+       
         create_obstacle(i);
+    }
+
+    if (pthread_mutex_init(&mutexLockObstacles, NULL) != 0){
+        return 1;
     }
 
     //initialize messages
     char **message = malloc((threads+2) * sizeof(char));
     for(int i = 0;i < threads+2; i++){
-        message[i] = malloc(2 * sizeof(char));
+        message[i] = malloc(12 * sizeof(char));
         sprintf(message[i], "%d-%d", i, obstacles);
     }
     sprintf(message[threads], "%d-%d", threads,obstacles);
@@ -445,20 +449,20 @@ int main(int argc, char *argv[]){
     getch();
     finish = true;
 
-
+   
 
     //ending mutexes and condition locks
     for(int i = 0;i < threads; i++){
-        pthread_mutex_unlock(&mutexLockThreads[i]);
         pthread_cond_signal(&condLock[i]);
-        pthread_mutex_destroy(&mutexLockThreads[i]);
         pthread_cond_destroy(&condLock[i]);
-
-        pthread_mutex_unlock(&mutexLockObstacles[i]);
-        pthread_mutex_destroy(&mutexLockObstacles[i]);
     }
+    pthread_mutex_unlock(&mutexLockThreads);
+    pthread_mutex_destroy(&mutexLockThreads);
 
-        //finish threads
+    pthread_mutex_unlock(&mutexLockObstacles);
+    pthread_mutex_destroy(&mutexLockObstacles);
+
+    //finish threads
     for(int i=0; i < threads + 2 ; i++){
         pthread_join( thread, NULL);
     }
@@ -476,9 +480,6 @@ int main(int argc, char *argv[]){
     free(cursor_y);
     free(hit_counter);
     free(is_asleep);
-
-    free(mutexLockThreads);
-    free(mutexLockObstacles);
 
     free(message);
 
