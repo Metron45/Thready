@@ -99,6 +99,11 @@ int move_ball(int * data){
 }
 
 void change_movement(int * data, int col){
+
+    data[MOVEMENT] = (data[MOVEMENT] + 4)%8;
+    move_ball(data);
+    data[MOVEMENT] = (data[MOVEMENT] + 4)%8;
+
     switch (data[MOVEMENT]) {
         case 0:
             data[MOVEMENT] = 3 + (rand() % 3);
