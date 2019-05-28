@@ -27,7 +27,8 @@ pthread_cond_t *condLock;
 bool finish; //check for the end of the program
 
 int check_collision(int * data){
-    for(int i=0;i<=data[BOARD_OBSTACLES];i++){
+    for(int i=0;i<data[BOARD_OBSTACLES];i++){
+
         pthread_mutex_lock(&mutexLockObstacles);
         if(top_X[i] >= data[X] && data[X] >= bottom_X[i] && top_Y[i] >= data[Y] && data[Y] >= bottom_Y[i]){
             pthread_mutex_unlock(&mutexLockObstacles);
@@ -192,8 +193,8 @@ void *thread_function( void * ptr ){
         obstacles, //local data of how many obstacles board has
         thread_id
     }; 
-    //int thread_id = atoi((char*) ptr);
-    
+    //printf("Thread %d\n", thread_id);
+
     while(!finish){
         //Speed decision
         usleep((MAX_SPEED / data[SPEED]) * 150000);
@@ -304,7 +305,7 @@ void *thread_unlock( void * ptr ){
                 }
             pthread_mutex_unlock(&mutexLockThreads);
         }
-        if(asleep_count > (threads - max_asleep)){
+        if(asleep_count > (threads - max_asleep + 1)){
             pthread_cond_signal(&condLock[thread_with_least_hits]);
         }
     }
@@ -415,16 +416,18 @@ int main(int argc, char *argv[]){
     }
 
     //initialize messages
-    char **message = malloc((threads+2) * sizeof(char));
-    for(int i = 0;i < threads+2; i++){
-        message[i] = malloc(12 * sizeof(char));
+    char **message = malloc((threads + 2) * sizeof(char*));
+    for(int i = 0;i < threads; i++){
+        message[i] = malloc(10 * sizeof(char));
         sprintf(message[i], "%d-%d", i, obstacles);
     }
+    message[threads] = malloc(10 * sizeof(char));
     sprintf(message[threads], "%d-%d", threads,obstacles);
+    message[threads+1] = malloc(10 * sizeof(char));
     sprintf(message[threads+1], "%d-%d", max_active_threads, threads);
  
     //initialize ball threads
-    for(int i=0; i < threads ; i++){
+    for(int i=1; i < threads ; i++){
         error = pthread_create( &thread, NULL, thread_function, (void*) message[i]);
         if(error){
             printf("Thread failed to start");
@@ -446,6 +449,7 @@ int main(int argc, char *argv[]){
     }
 
     //initialize ncurses screen
+    //debug------------------------------------------------------------------------------------------------
     initscr();
     noecho();
     curs_set(FALSE);
@@ -458,6 +462,7 @@ int main(int argc, char *argv[]){
 
     //ending mutexes and condition locks
     for(int i = 0;i < threads; i++){
+        pthread_mutex_unlock(&mutexLockThreads);
         pthread_cond_signal(&condLock[i]);
         pthread_cond_destroy(&condLock[i]);
     }
@@ -476,8 +481,8 @@ int main(int argc, char *argv[]){
     endwin();
 
     //freeing space
-    //free(top_X);
-    //free(top_Y);
+    free(top_X);
+    free(top_Y);
     free(bottom_X);
     free(bottom_Y);
 
