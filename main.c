@@ -427,7 +427,7 @@ int main(int argc, char *argv[]){
     sprintf(message[threads+1], "%d-%d", max_active_threads, threads);
  
     //initialize ball threads
-    for(int i=1; i < threads ; i++){
+    for(int i=0; i < threads ; i++){
         error = pthread_create( &thread, NULL, thread_function, (void*) message[i]);
         if(error){
             printf("Thread failed to start");
