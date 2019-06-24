@@ -385,7 +385,6 @@ int main(int argc, char *argv[]){
         hit_counter[i] = 0;
         is_asleep[i] = false;
         //mutexes
-        
         if (pthread_cond_init(&condLock[i], NULL) != 0){
             return 1;
         }
