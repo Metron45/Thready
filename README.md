@@ -1,9 +1,9 @@
 # Thready
     Simple multithreading example project using ncurses and pthreads libraries. 
-##Used Tools
+## Used Tools
     I used Visual Studio: Code aslongside GCC compiler. I specifically wanted as simple tools as possible. VS:Code was meant to be solely alternative for text editor. 
     I eneded up not requiring help of GDB during this project. 
-##Running
+## Running
     To build the program simply run the:
     ```
     make
